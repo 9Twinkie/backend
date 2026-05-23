@@ -8,11 +8,9 @@ import com.monitoring.core.application.ports.out.repositories.NotificationReposi
 import com.monitoring.core.domain.AlertRule;
 import com.monitoring.core.domain.Incident;
 import com.monitoring.core.domain.Notification;
-import com.monitoring.core.domain.Status;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.time.LocalDateTime;
 import java.util.Optional;
 
 /**
@@ -70,14 +68,7 @@ public class AlertEvaluationService {
             log.debug("Правило id={} сработало, но открытый инцидент уже есть", rule.id());
             return false;
         }
-        var incident = incidents.create(new Incident(
-                null,
-                rule.id(),
-                LocalDateTime.now(),
-                Status.NEW,
-                null,
-                null
-        ));
+        var incident = incidents.create(Incident.newFromRule(rule.id()));
         var notification = notifications.create(new Notification(
                 null,
                 incident.id(),
@@ -104,6 +95,9 @@ public class AlertEvaluationService {
     private int resolveRecoveredIncidents() {
         int resolved = 0;
         for (var open : incidents.findAllOpen()) {
+            if (open.isPrometheusSourced() || open.ruleId() == null) {
+                continue;
+            }
             var rule = alertRules.findById(open.ruleId());
             if (rule.isEmpty()) {
                 log.warn("Открытый инцидент id={} ссылается на несуществующее правило {}", open.id(), open.ruleId());

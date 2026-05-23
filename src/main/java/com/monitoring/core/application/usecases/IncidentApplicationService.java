@@ -60,14 +60,7 @@ public class IncidentApplicationService implements
                 .orElseThrow(() -> new NoSuchElementException("Инженер не найден: " + engineerId));
         var channelName = channel != null && !channel.isBlank() ? channel : "push";
 
-        var created = incidents.create(new Incident(
-                null,
-                ruleId,
-                LocalDateTime.now(),
-                Status.NEW,
-                null,
-                null
-        ));
+        var created = incidents.create(Incident.newFromRule(ruleId));
         var notification = notifications.create(new Notification(
                 null,
                 created.id(),
@@ -135,7 +128,25 @@ public class IncidentApplicationService implements
     }
 
     private IncidentView toView(Incident incident) {
-        var rule = alertRules.findById(incident.ruleId()).orElse(null);
+        if (incident.isPrometheusSourced()) {
+            var metricName = incident.prometheusExpr() != null && !incident.prometheusExpr().isBlank()
+                    ? incident.prometheusExpr()
+                    : incident.prometheusAlertName();
+            var severity = incident.prometheusSeverity() != null ? incident.prometheusSeverity() : Severity.HIGH;
+            return new IncidentView(
+                    incident.id(),
+                    incident.ruleId(),
+                    metricName,
+                    "prometheus",
+                    0.0,
+                    severity,
+                    incident.status(),
+                    incident.timestamp(),
+                    incident.assignedEngineerId(),
+                    incident.resolvedAt()
+            );
+        }
+        var rule = incident.ruleId() != null ? alertRules.findById(incident.ruleId()).orElse(null) : null;
         var metricName = rule != null ? rule.metricName() : "unknown";
         var operator = rule != null ? rule.operator() : "?";
         var threshold = rule != null ? rule.threshold() : 0.0;

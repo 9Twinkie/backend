@@ -19,6 +19,8 @@ monitoring:
     url: ${MONITORING_PROMETHEUS_URL:http://localhost:9090/api/v1}
   alert-evaluation:
     enabled: true
+    # prometheus — алерты из GET /api/v1/rules?type=alert; database — правила в таблице alert_rules
+    source: prometheus
     interval-ms: 1000
     default-notify-engineer-id: 2
 

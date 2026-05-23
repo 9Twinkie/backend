@@ -1,5 +1,6 @@
 package com.monitoring.core.application.usecases;
 
+import com.monitoring.core.application.model.PrometheusFiringAlert;
 import com.monitoring.core.domain.AlertRule;
 import com.monitoring.core.domain.Severity;
 
@@ -13,6 +14,10 @@ public final class IncidentAlertMessages {
 
     public static String created(AlertRule rule) {
         return severityLabel(rule.severity()) + ": " + rule.metricName();
+    }
+
+    public static String createdFromPrometheus(PrometheusFiringAlert alert) {
+        return severityLabel(alert.severity()) + ": " + alert.displayMetric();
     }
 
     public static String resolved(AlertRule rule) {

@@ -58,6 +58,14 @@ public class PrometheusHttpClient {
     }
 
     /**
+     * Правила recording/alerting: {@code GET /rules?type=alert}
+     */
+    public Optional<JsonNode> rules(String type) {
+        var query = encodeParam("type", type);
+        return get(buildUri("/rules", query));
+    }
+
+    /**
      * Активные scrape-таргеты: {@code GET /targets}
      */
     public Optional<JsonNode> targets() {

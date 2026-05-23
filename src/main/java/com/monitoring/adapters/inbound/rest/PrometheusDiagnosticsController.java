@@ -3,11 +3,15 @@ package com.monitoring.adapters.inbound.rest;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.monitoring.adapters.outbound.prometheus.MonitoringDashboardService;
 import com.monitoring.adapters.outbound.prometheus.PrometheusProbeService;
+import com.monitoring.core.application.model.PrometheusFiringAlert;
+import com.monitoring.core.application.ports.out.metrics.PrometheusFiringAlertsReader;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 /**
  * Диагностика: что бэкенд реально читает из Prometheus на машине (таргеты, up, имена метрик).
@@ -19,13 +23,16 @@ public class PrometheusDiagnosticsController {
 
     private final PrometheusProbeService probeService;
     private final MonitoringDashboardService dashboard;
+    private final PrometheusFiringAlertsReader firingAlerts;
 
     public PrometheusDiagnosticsController(
             PrometheusProbeService probeService,
-            MonitoringDashboardService dashboard
+            MonitoringDashboardService dashboard,
+            PrometheusFiringAlertsReader firingAlerts
     ) {
         this.probeService = probeService;
         this.dashboard = dashboard;
+        this.firingAlerts = firingAlerts;
     }
 
     /**
@@ -34,6 +41,12 @@ public class PrometheusDiagnosticsController {
     @GetMapping("/overview")
     public PrometheusProbeService.PrometheusOverview overview() {
         return probeService.overview();
+    }
+
+    /** Firing-алерты из Prometheus rules (то, из чего создаются инциденты). */
+    @GetMapping("/firing")
+    public List<PrometheusFiringAlert> firing() {
+        return firingAlerts.listFiringAlerts();
     }
 
     /**

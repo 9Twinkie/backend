@@ -46,18 +46,37 @@ public class IncidentChartService {
     }
 
     private Optional<IncidentChartView> buildChart(Incident incident, int hours, String step) {
-        var rule = alertRules.findById(incident.ruleId());
-        if (rule.isEmpty()) {
-            return Optional.empty();
+        String promql;
+        String metricName;
+        double threshold;
+
+        if (incident.isPrometheusSourced()) {
+            promql = incident.prometheusExpr();
+            if (promql == null || promql.isBlank()) {
+                return Optional.empty();
+            }
+            metricName = promql;
+            threshold = 0.0;
+        } else {
+            if (incident.ruleId() == null) {
+                return Optional.empty();
+            }
+            var rule = alertRules.findById(incident.ruleId());
+            if (rule.isEmpty()) {
+                return Optional.empty();
+            }
+            var alertRule = rule.get();
+            promql = PromqlResolver.toPromql(alertRule);
+            metricName = alertRule.metricName();
+            threshold = alertRule.threshold();
         }
-        var alertRule = rule.get();
-        var promql = PromqlResolver.toPromql(alertRule);
+
         var points = metricHistory.readRange(promql, hours, step);
         return Optional.of(new IncidentChartView(
                 incident.id(),
-                alertRule.metricName(),
+                metricName,
                 promql,
-                alertRule.threshold(),
+                threshold,
                 hours,
                 points
         ));

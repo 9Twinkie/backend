@@ -19,8 +19,12 @@ public interface IncidentRepository {
     /** Открытый инцидент по правилу (NEW или CONFIRMED), чтобы не дублировать алерты. */
     Optional<Incident> findOpenByRuleId(Long ruleId);
 
+    Optional<Incident> findOpenByPrometheusFingerprint(String fingerprint);
+
     /** Все открытые инциденты (NEW или CONFIRMED) для автозакрытия при восстановлении метрики. */
     List<Incident> findAllOpen();
+
+    List<Incident> findAllOpenPrometheusSourced();
 
     Incident create(Incident incident);
 

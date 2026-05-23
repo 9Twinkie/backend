@@ -1,0 +1,24 @@
+# Порт 5433 снаружи — чтобы не конфликтовать с локальным PostgreSQL на 5432 (Windows).
+# Запуск приложения: .\mvnw.cmd spring-boot:run -Dspring-boot.run.profiles=docker
+services:
+  postgres:
+    image: postgres:18-alpine
+    container_name: monitoring-pg
+    environment:
+      POSTGRES_DB: monitoring
+      POSTGRES_USER: monitoring
+      POSTGRES_PASSWORD: monitoring
+    ports:
+      - "5433:5432"
+    # PG 18+: данные в подкаталоге major-версии; монтируем /var/lib/postgresql, не .../data
+    volumes:
+      - monitoring_pg_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U monitoring -d monitoring"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+volumes:
+  monitoring_pg_data:

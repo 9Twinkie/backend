@@ -1,0 +1,6 @@
+# Профиль для БД в Docker Compose (порт 5433, см. docker-compose.yml)
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5433/monitoring
+    username: monitoring
+    password: monitoring

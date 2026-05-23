@@ -1,0 +1,5 @@
+# Скопируй в application-local.yml (файл в .gitignore) и подставь IP своей ВМ.
+# Запуск: профили docker,local  (БД в Docker + Prometheus на ВМ)
+monitoring:
+  prometheus:
+    url: http://192.168.234.128:9090/api/v1

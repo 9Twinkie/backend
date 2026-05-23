@@ -1,0 +1,37 @@
+server:
+  address: 0.0.0.0
+  port: 8080
+
+spring:
+  application:
+    name: monitoring-backend
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/monitoring}
+    username: ${SPRING_DATASOURCE_USERNAME:monitoring}
+    password: ${SPRING_DATASOURCE_PASSWORD:monitoring}
+    driver-class-name: ${SPRING_DATASOURCE_DRIVER_CLASS_NAME:org.postgresql.Driver}
+  flyway:
+    enabled: true
+
+monitoring:
+  prometheus:
+    # UI: http://<vm>:9090/  →  API всегда с суффиксом /api/v1
+    url: ${MONITORING_PROMETHEUS_URL:http://localhost:9090/api/v1}
+  alert-evaluation:
+    enabled: true
+    interval-ms: 1000
+    default-notify-engineer-id: 2
+
+jwt:
+  secret: change-me
+  expiration-ms: 86400000
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+
+logging:
+  level:
+    org.springframework.jdbc.core: DEBUG

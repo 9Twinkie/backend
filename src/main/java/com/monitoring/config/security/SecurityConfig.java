@@ -3,7 +3,6 @@ package com.monitoring.config.security;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
-import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityCustomizer;
@@ -14,9 +13,6 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
-/**
- * Stateless JWT, роли ENGINEER/ADMIN через префикс ROLE_, публичные /auth/**, /ws/**, /actuator/**.
- */
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
@@ -26,9 +22,9 @@ public class SecurityConfig {
         http.csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(reg -> reg
-                        .requestMatchers("/auth/**", "/ws/**", "/actuator/**", "/dev/**").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/incidents", "/incidents/**", "/alerts", "/alerts/**")
-                        .authenticated()
+                        .requestMatchers("/ws/**", "/actuator/**", "/dev/**").permitAll()
+                        .requestMatchers("/auth/login", "/auth/trigger-incident", "/trigger-incident").permitAll()
+                        .requestMatchers("/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated())
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint((request, response, authException) ->
@@ -44,7 +40,6 @@ public class SecurityConfig {
         return new BCryptPasswordEncoder();
     }
 
-    /** Полностью без JWT — для локального демо создания инцидента. */
     @Bean
     @Order(0)
     public WebSecurityCustomizer publicTriggerBypass() {

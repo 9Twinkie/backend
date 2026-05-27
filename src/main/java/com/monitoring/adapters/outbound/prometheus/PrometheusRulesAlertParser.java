@@ -36,14 +36,18 @@ public final class PrometheusRulesAlertParser {
                 var expr = rule.path("query").asText(null);
                 var ruleName = rule.path("name").asText("alert");
                 var alerts = rule.path("alerts");
+                var ruleLabels = toLabelMap(rule.path("labels"));
+                var ruleAnnotations = toLabelMap(rule.path("annotations"));
                 if (alerts.isArray() && !alerts.isEmpty()) {
                     for (var alert : alerts) {
                         if ("firing".equals(alert.path("state").asText())) {
-                            addAlert(result, alert.path("labels"), expr, ruleName);
+                            var mergedLabels = mergeLabels(ruleLabels, alert.path("labels"));
+                            var mergedAnnotations = mergeLabels(ruleAnnotations, alert.path("annotations"));
+                            addAlert(result, mergedLabels, mergedAnnotations, expr, ruleName);
                         }
                     }
                 } else if ("firing".equals(rule.path("state").asText())) {
-                    addAlert(result, rule.path("labels"), expr, ruleName);
+                    addAlert(result, ruleLabels, ruleAnnotations, expr, ruleName);
                 }
             }
         }
@@ -52,18 +56,41 @@ public final class PrometheusRulesAlertParser {
 
     private static void addAlert(
             List<PrometheusFiringAlert> result,
-            JsonNode labelsNode,
+            Map<String, String> labels,
+            Map<String, String> annotations,
             String expr,
             String ruleName
     ) {
-        var labels = toLabelMap(labelsNode);
         if (!labels.containsKey("alertname")) {
             labels.put("alertname", ruleName);
         }
         var fingerprint = PrometheusAlertFingerprint.fromLabels(labels);
         var alertName = labels.get("alertname");
-        var severity = mapSeverity(labels);
-        result.add(new PrometheusFiringAlert(fingerprint, alertName, expr, severity, Map.copyOf(labels)));
+        var severity = mapSeverity(labels, annotations);
+        var summary = trimToNull(PrometheusAnnotationRenderer.render(annotations.get("summary"), labels));
+        var description = trimToNull(PrometheusAnnotationRenderer.pickDisplayText(annotations, labels));
+        result.add(new PrometheusFiringAlert(
+                fingerprint,
+                alertName,
+                expr,
+                severity,
+                summary,
+                description,
+                Map.copyOf(labels)
+        ));
+    }
+
+    private static String trimToNull(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return value.trim();
+    }
+
+    private static Map<String, String> mergeLabels(Map<String, String> base, JsonNode overrideNode) {
+        var merged = new HashMap<>(base);
+        merged.putAll(toLabelMap(overrideNode));
+        return merged;
     }
 
     private static Map<String, String> toLabelMap(JsonNode labelsNode) {
@@ -80,20 +107,55 @@ public final class PrometheusRulesAlertParser {
     }
 
     static Severity mapSeverity(Map<String, String> labels) {
-        var raw = labels.getOrDefault("severity", labels.getOrDefault("priority", "high"));
-        return switch (raw.toLowerCase()) {
-            case "critical", "crit" -> Severity.CRITICAL;
+        return mapSeverity(labels, Map.of());
+    }
+
+    static Severity mapSeverity(Map<String, String> labels, Map<String, String> annotations) {
+        var raw = resolveRawSeverity(labels, annotations);
+        var normalized = raw.toLowerCase().trim();
+        return switch (normalized) {
+            case "critical", "crit", "fatal", "emergency" -> Severity.CRITICAL;
             case "warning", "warn" -> Severity.MEDIUM;
-            case "info", "low" -> Severity.LOW;
-            case "high" -> Severity.HIGH;
+            case "info", "information", "informational", "inform", "notice", "low", "minor" -> Severity.LOW;
+            case "high", "major", "page" -> Severity.HIGH;
             default -> {
                 try {
-                    yield Severity.valueOf(raw.toUpperCase());
+                    yield Severity.valueOf(normalized.toUpperCase());
                 } catch (IllegalArgumentException ex) {
-                    yield Severity.HIGH;
+                    yield inferFromText(normalized);
                 }
             }
         };
+    }
+
+    private static String resolveRawSeverity(Map<String, String> labels, Map<String, String> annotations) {
+        for (var key : List.of("severity", "priority", "level")) {
+            var fromLabels = labels.get(key);
+            if (fromLabels != null && !fromLabels.isBlank()) {
+                return fromLabels.trim();
+            }
+            var fromAnnotations = annotations.get(key);
+            if (fromAnnotations != null && !fromAnnotations.isBlank()) {
+                return fromAnnotations.trim();
+            }
+        }
+        return "high";
+    }
+
+    private static Severity inferFromText(String normalized) {
+        if (normalized.contains("info") || normalized.contains("notice")) {
+            return Severity.LOW;
+        }
+        if (normalized.contains("warn")) {
+            return Severity.MEDIUM;
+        }
+        if (normalized.contains("crit") || normalized.contains("fatal")) {
+            return Severity.CRITICAL;
+        }
+        if (normalized.contains("high") || normalized.contains("major") || normalized.contains("page")) {
+            return Severity.HIGH;
+        }
+        return Severity.LOW;
     }
 
     private static boolean isSuccess(JsonNode root) {

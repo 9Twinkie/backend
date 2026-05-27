@@ -70,9 +70,12 @@ public class MonitoringDashboardService {
             if (inc.status() == Status.CLOSED) {
                 continue;
             }
+            var label = inc.description() != null && !inc.description().isBlank()
+                    ? inc.metricName() + " — " + inc.description()
+                    : inc.metricName() + " — " + inc.severity();
             objects.add(new MonitoringObject(
                     "incident:" + inc.id(),
-                    inc.metricName() + " — " + inc.severity(),
+                    label,
                     "incident",
                     inc.status().name(),
                     inc.metricName(),

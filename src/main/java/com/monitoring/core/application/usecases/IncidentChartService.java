@@ -8,7 +8,6 @@ import com.monitoring.core.application.ports.out.repositories.IncidentRepository
 import com.monitoring.core.domain.Incident;
 import com.monitoring.core.domain.Status;
 
-import java.util.NoSuchElementException;
 import java.util.Optional;
 
 /**
@@ -41,7 +40,7 @@ public class IncidentChartService {
             String step
     ) {
         return incidents.findById(incidentId)
-                .filter(inc -> admin || canEngineerSee(inc, username))
+                .filter(inc -> canEngineerSee(inc, admin))
                 .flatMap(inc -> buildChart(inc, hours, step));
     }
 
@@ -82,11 +81,7 @@ public class IncidentChartService {
         ));
     }
 
-    private boolean canEngineerSee(Incident inc, String username) {
-        var engineerId = engineers.findByUsername(username)
-                .map(e -> e.id())
-                .orElseThrow(() -> new NoSuchElementException("Пользователь не найден: " + username));
-        return inc.status() == Status.NEW
-                || (inc.assignedEngineerId() != null && inc.assignedEngineerId().equals(engineerId));
+    private boolean canEngineerSee(Incident inc, boolean admin) {
+        return admin || inc.status() == Status.NEW || inc.status() == Status.CONFIRMED;
     }
 }

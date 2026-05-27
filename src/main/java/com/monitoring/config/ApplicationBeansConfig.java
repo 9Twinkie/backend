@@ -6,8 +6,10 @@ import com.monitoring.core.application.ports.out.repositories.AlertRuleRepositor
 import com.monitoring.core.application.ports.out.repositories.EngineerRepository;
 import com.monitoring.core.application.ports.out.repositories.IncidentRepository;
 import com.monitoring.core.application.ports.out.repositories.NotificationRepository;
+import com.monitoring.core.application.ports.out.security.PasswordHasher;
 import com.monitoring.core.application.ports.out.security.PasswordVerifier;
 import com.monitoring.core.application.ports.out.security.TokenIssuer;
+import com.monitoring.core.application.usecases.UserManagementService;
 import com.monitoring.core.application.ports.out.metrics.MetricHistoryReader;
 import com.monitoring.core.application.usecases.AuthenticateUserService;
 import com.monitoring.core.application.usecases.IncidentApplicationService;
@@ -50,6 +52,14 @@ public class ApplicationBeansConfig {
             MetricHistoryReader metricHistory
     ) {
         return new IncidentChartService(incidents, alertRules, engineers, metricHistory);
+    }
+
+    @Bean
+    public UserManagementService userManagementService(
+            EngineerRepository engineers,
+            PasswordHasher passwordHasher
+    ) {
+        return new UserManagementService(engineers, passwordHasher);
     }
 
     @Bean

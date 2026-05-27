@@ -12,12 +12,27 @@ public record PrometheusFiringAlert(
         String alertName,
         String expr,
         Severity severity,
+        String summary,
+        String description,
         Map<String, String> labels
 ) {
-    public String displayMetric() {
-        if (expr != null && !expr.isBlank()) {
-            return expr;
+    /** Заголовок для push / списка: имя алерта. */
+    public String displayTitle() {
+        if (alertName != null && !alertName.isBlank()) {
+            return alertName;
         }
-        return alertName;
+        return expr;
+    }
+
+    /** Подзаголовок: description или summary. */
+    public String displaySubtitle() {
+        if (description != null && !description.isBlank()) {
+            return description;
+        }
+        return summary;
+    }
+
+    public String displayMetric() {
+        return displayTitle();
     }
 }

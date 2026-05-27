@@ -36,9 +36,12 @@ public class IncidentController {
         this.currentUser = currentUser;
     }
 
+    /**
+     * @param scope active (по умолчанию) — NEW + CONFIRMED; history — CLOSED; all — всё (удобно admin)
+     */
     @GetMapping
-    public List<IncidentView> list() {
-        return incidents.listForUser(currentUser.username(), currentUser.isAdmin());
+    public List<IncidentView> list(@RequestParam(defaultValue = "active") String scope) {
+        return incidents.listForUser(currentUser.username(), currentUser.isAdmin(), scope);
     }
 
     /** Создать тестовый инцидент. ruleId: 1=cpu HIGH, 2=memory CRITICAL */

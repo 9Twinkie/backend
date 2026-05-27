@@ -12,6 +12,8 @@ public record Incident(
         String prometheusFingerprint,
         String prometheusAlertName,
         String prometheusExpr,
+        String prometheusSummary,
+        String prometheusDescription,
         Severity prometheusSeverity,
         LocalDateTime timestamp,
         Status status,
@@ -25,7 +27,7 @@ public record Incident(
 
     public static Incident newFromRule(Long ruleId) {
         return new Incident(
-                null, ruleId, null, null, null, null,
+                null, ruleId, null, null, null, null, null, null,
                 LocalDateTime.now(), Status.NEW, null, null
         );
     }
@@ -34,11 +36,13 @@ public record Incident(
             String fingerprint,
             String alertName,
             String expr,
+            String summary,
+            String description,
             Severity severity
     ) {
         Objects.requireNonNull(fingerprint, "fingerprint обязателен");
         return new Incident(
-                null, null, fingerprint, alertName, expr, severity,
+                null, null, fingerprint, alertName, expr, summary, description, severity,
                 LocalDateTime.now(), Status.NEW, null, null
         );
     }
@@ -75,7 +79,8 @@ public record Incident(
 
     private Incident copyWith(Status newStatus, Long engineerId, LocalDateTime resolved) {
         return new Incident(
-                id, ruleId, prometheusFingerprint, prometheusAlertName, prometheusExpr, prometheusSeverity,
+                id, ruleId, prometheusFingerprint, prometheusAlertName, prometheusExpr,
+                prometheusSummary, prometheusDescription, prometheusSeverity,
                 timestamp, newStatus, engineerId, resolved
         );
     }

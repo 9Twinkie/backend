@@ -18,9 +18,6 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 import java.util.List;
 
-/**
- * Извлекает Bearer JWT, валидирует подпись и кладёт {@link org.springframework.security.core.Authentication} в контекст.
- */
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
@@ -32,11 +29,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        var path = request.getRequestURI();
-        return path.startsWith("/auth/")
-                || path.startsWith("/actuator/")
-                || path.startsWith("/dev/")
-                || path.startsWith("/ws");
+        return PublicApiPaths.isPublic(request.getRequestURI());
     }
 
     @Override
@@ -51,7 +44,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 var claims = jwtParser.parseSignedClaims(token).getPayload();
                 var username = claims.getSubject();
                 var role = claims.get("role", String.class);
-                var authority = new SimpleGrantedAuthority("ROLE_" + role);
+                if (role == null || role.isBlank()) {
+                    role = "ENGINEER";
+                }
+                var authority = new SimpleGrantedAuthority("ROLE_" + role.trim().toUpperCase());
                 var authentication = new UsernamePasswordAuthenticationToken(
                         username,
                         null,
@@ -60,7 +56,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                 SecurityContextHolder.getContext().setAuthentication(authentication);
             } catch (JwtException ex) {
-                // Битый/просроченный токен — очищаем контекст и продолжаем цепочку (вернётся 401 downstream)
                 SecurityContextHolder.clearContext();
             }
         }

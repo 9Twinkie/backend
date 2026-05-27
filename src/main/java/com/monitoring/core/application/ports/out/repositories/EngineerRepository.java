@@ -14,4 +14,8 @@ public interface EngineerRepository {
     Engineer save(Engineer engineer);
 
     List<Engineer> findAll();
+
+    long countByRole(String role);
+
+    boolean deleteById(Long id);
 }

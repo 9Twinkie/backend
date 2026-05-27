@@ -24,7 +24,8 @@ import java.util.Optional;
 public class IncidentJdbcRepository implements IncidentRepository {
 
     private static final String INCIDENT_COLUMNS = """
-            id, rule_id, prometheus_fingerprint, prometheus_alert_name, prometheus_expr, prometheus_severity,
+            id, rule_id, prometheus_fingerprint, prometheus_alert_name, prometheus_expr,
+            prometheus_summary, prometheus_description, prometheus_severity,
             timestamp, status, assigned_engineer_id, resolved_at
             """;
 
@@ -88,22 +89,31 @@ public class IncidentJdbcRepository implements IncidentRepository {
             ORDER BY timestamp DESC
             """;
 
-    private static final String SELECT_VISIBLE_TO_ENGINEER = """
+    private static final String SELECT_ACTIVE_FOR_ENGINEERS = """
             SELECT
             """ + INCIDENT_COLUMNS + """
             FROM incidents
-            WHERE status = 'NEW'
-               OR assigned_engineer_id = :engineer_id
+            WHERE status IN ('NEW', 'CONFIRMED')
+            ORDER BY timestamp DESC
+            """;
+
+    private static final String SELECT_CLOSED = """
+            SELECT
+            """ + INCIDENT_COLUMNS + """
+            FROM incidents
+            WHERE status = 'CLOSED'
             ORDER BY timestamp DESC
             """;
 
     private static final String INSERT = """
             INSERT INTO incidents (
-                rule_id, prometheus_fingerprint, prometheus_alert_name, prometheus_expr, prometheus_severity,
+                rule_id, prometheus_fingerprint, prometheus_alert_name, prometheus_expr,
+                prometheus_summary, prometheus_description, prometheus_severity,
                 timestamp, status, assigned_engineer_id, resolved_at
             )
             VALUES (
-                :rule_id, :prometheus_fingerprint, :prometheus_alert_name, :prometheus_expr, :prometheus_severity,
+                :rule_id, :prometheus_fingerprint, :prometheus_alert_name, :prometheus_expr,
+                :prometheus_summary, :prometheus_description, :prometheus_severity,
                 :timestamp, :status, :assigned_engineer_id, :resolved_at
             )
             """;
@@ -173,9 +183,13 @@ public class IncidentJdbcRepository implements IncidentRepository {
     }
 
     @Override
-    public List<Incident> findVisibleToEngineer(Long engineerId) {
-        var params = new MapSqlParameterSource("engineer_id", engineerId);
-        return jdbc.query(SELECT_VISIBLE_TO_ENGINEER, params, new IncidentRowMapper());
+    public List<Incident> findActiveForEngineers() {
+        return jdbc.query(SELECT_ACTIVE_FOR_ENGINEERS, new IncidentRowMapper());
+    }
+
+    @Override
+    public List<Incident> findClosed() {
+        return jdbc.query(SELECT_CLOSED, new IncidentRowMapper());
     }
 
     @Override
@@ -187,6 +201,8 @@ public class IncidentJdbcRepository implements IncidentRepository {
                 .addValue("prometheus_fingerprint", incident.prometheusFingerprint())
                 .addValue("prometheus_alert_name", incident.prometheusAlertName())
                 .addValue("prometheus_expr", incident.prometheusExpr())
+                .addValue("prometheus_summary", incident.prometheusSummary())
+                .addValue("prometheus_description", incident.prometheusDescription())
                 .addValue("prometheus_severity", severityToDb(incident.prometheusSeverity()))
                 .addValue("timestamp", incident.timestamp())
                 .addValue("status", incident.status().name())
@@ -214,6 +230,8 @@ public class IncidentJdbcRepository implements IncidentRepository {
                 incident.prometheusFingerprint(),
                 incident.prometheusAlertName(),
                 incident.prometheusExpr(),
+                incident.prometheusSummary(),
+                incident.prometheusDescription(),
                 incident.prometheusSeverity(),
                 incident.timestamp(),
                 incident.status(),
@@ -247,6 +265,8 @@ public class IncidentJdbcRepository implements IncidentRepository {
                     rs.getString("prometheus_fingerprint"),
                     rs.getString("prometheus_alert_name"),
                     rs.getString("prometheus_expr"),
+                    rs.getString("prometheus_summary"),
+                    rs.getString("prometheus_description"),
                     prometheusSeverity,
                     rs.getTimestamp("timestamp").toLocalDateTime(),
                     Status.valueOf(rs.getString("status")),

@@ -55,6 +55,17 @@ public class EngineerJdbcRepository implements EngineerRepository {
             WHERE id = :id
             """;
 
+    private static final String COUNT_BY_ROLE = """
+            SELECT COUNT(*)
+            FROM engineers
+            WHERE role = :role
+            """;
+
+    private static final String DELETE_BY_ID = """
+            DELETE FROM engineers
+            WHERE id = :id
+            """;
+
     private final NamedParameterJdbcTemplate jdbc;
 
     public EngineerJdbcRepository(NamedParameterJdbcTemplate jdbc) {
@@ -104,6 +115,21 @@ public class EngineerJdbcRepository implements EngineerRepository {
     @Override
     public List<Engineer> findAll() {
         return jdbc.query(SELECT_ALL, new EngineerRowMapper());
+    }
+
+    @Override
+    public long countByRole(String role) {
+        var params = new MapSqlParameterSource("role", role);
+        return Objects.requireNonNull(
+                jdbc.queryForObject(COUNT_BY_ROLE, params, Long.class),
+                "COUNT(*) не должен быть NULL"
+        );
+    }
+
+    @Override
+    @Transactional
+    public boolean deleteById(Long id) {
+        return jdbc.update(DELETE_BY_ID, new MapSqlParameterSource("id", id)) > 0;
     }
 
     private static MapSqlParameterSource toParams(Engineer engineer) {

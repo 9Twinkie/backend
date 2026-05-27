@@ -10,6 +10,7 @@ import org.springframework.web.client.RestClientException;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -76,7 +77,34 @@ public class PrometheusHttpClient {
      * Имена всех известных Prometheus метрик: {@code GET /label/__name__/values}
      */
     public Optional<JsonNode> metricNames() {
-        return get(buildUri("/label/__name__/values", null));
+        return labelValues("__name__", List.of());
+    }
+
+    /**
+     * Значения label с опциональными series selector {@code match[]}.
+     */
+    public Optional<JsonNode> labelValues(String labelName, List<String> matchSelectors) {
+        var encodedLabel = URLEncoder.encode(labelName, StandardCharsets.UTF_8);
+        var query = buildMatchQuery(matchSelectors);
+        return get(buildUri("/label/" + encodedLabel + "/values", query));
+    }
+
+    /**
+     * Все имена labels в TSDB: {@code GET /labels}
+     */
+    public Optional<JsonNode> labelNames(List<String> matchSelectors) {
+        var query = buildMatchQuery(matchSelectors);
+        return get(buildUri("/labels", query));
+    }
+
+    private static String buildMatchQuery(List<String> matchSelectors) {
+        if (matchSelectors == null || matchSelectors.isEmpty()) {
+            return null;
+        }
+        return matchSelectors.stream()
+                .filter(s -> s != null && !s.isBlank())
+                .map(s -> encodeParam("match[]", s))
+                .collect(Collectors.joining("&"));
     }
 
     private URI buildUri(String path, String queryString) {

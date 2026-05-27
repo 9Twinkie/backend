@@ -13,8 +13,11 @@ public interface IncidentRepository {
 
     List<Incident> findAll();
 
-    /** Инциденты, доступные инженеру: NEW (любые) и назначенные ему. */
-    List<Incident> findVisibleToEngineer(Long engineerId);
+    /** Активные инциденты для очереди: NEW и CONFIRMED (в работе у любого инженера). */
+    List<Incident> findActiveForEngineers();
+
+    /** История: закрытые инциденты. */
+    List<Incident> findClosed();
 
     /** Открытый инцидент по правилу (NEW или CONFIRMED), чтобы не дублировать алерты. */
     Optional<Incident> findOpenByRuleId(Long ruleId);

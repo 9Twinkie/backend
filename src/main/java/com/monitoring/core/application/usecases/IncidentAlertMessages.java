@@ -17,7 +17,12 @@ public final class IncidentAlertMessages {
     }
 
     public static String createdFromPrometheus(PrometheusFiringAlert alert) {
-        return severityLabel(alert.severity()) + ": " + alert.displayMetric();
+        var title = alert.displayTitle();
+        var subtitle = alert.displaySubtitle();
+        if (subtitle != null && !subtitle.isBlank()) {
+            return severityLabel(alert.severity()) + ": " + title + " — " + subtitle;
+        }
+        return severityLabel(alert.severity()) + ": " + title;
     }
 
     public static String resolved(AlertRule rule) {

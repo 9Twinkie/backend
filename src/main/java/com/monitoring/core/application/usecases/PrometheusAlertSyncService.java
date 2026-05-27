@@ -72,6 +72,8 @@ public class PrometheusAlertSyncService {
                 alert.fingerprint(),
                 alert.alertName(),
                 alert.expr(),
+                alert.summary(),
+                alert.description(),
                 alert.severity()
         ));
         var notification = notifications.create(new Notification(
@@ -87,7 +89,7 @@ public class PrometheusAlertSyncService {
                 incident.id(),
                 notification.id(),
                 alert.severity(),
-                alert.displayMetric(),
+                alert.displayTitle(),
                 message
         );
         log.info("Инцидент id={} из Prometheus alert={} expr={}", incident.id(), alert.alertName(), alert.expr());
@@ -102,7 +104,7 @@ public class PrometheusAlertSyncService {
             }
             var closed = open.autoResolve();
             incidents.updateStatus(closed.id(), closed.status().name(), closed.assignedEngineerId());
-            var metric = open.prometheusExpr() != null ? open.prometheusExpr() : open.prometheusAlertName();
+            var metric = open.prometheusAlertName() != null ? open.prometheusAlertName() : open.prometheusExpr();
             eventNotifier.incidentResolved(
                     closed.id(),
                     metric,

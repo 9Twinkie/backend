@@ -15,13 +15,12 @@ import com.monitoring.core.domain.Notification;
 import com.monitoring.core.domain.Severity;
 import com.monitoring.core.domain.Status;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Optional;
 
 /**
- * Сценарии работы с инцидентами.
+ * Сценарии работы с инцидентами (очередь Service Desk).
  */
 public class IncidentApplicationService implements
         ListIncidentsUseCase,
@@ -49,9 +48,6 @@ public class IncidentApplicationService implements
         this.eventNotifier = eventNotifier;
     }
 
-    /**
-     * Ручное создание инцидента (демо / тест мобильного приложения) + уведомление инженеру.
-     */
     public IncidentView createManual(Long ruleId, Long notifyEngineerId, String channel) {
         var rule = alertRules.findById(ruleId)
                 .orElseThrow(() -> new NoSuchElementException("Правило не найдено: " + ruleId));
@@ -77,22 +73,35 @@ public class IncidentApplicationService implements
                 rule.metricName(),
                 message
         );
-        return toView(created);
+        return toView(created, null, null);
     }
 
     @Override
     public List<IncidentView> listForUser(String username, boolean admin) {
-        List<Incident> list = admin
-                ? incidents.findAll()
-                : incidents.findVisibleToEngineer(requireEngineerId(username));
-        return list.stream().map(this::toView).toList();
+        return listForUser(username, admin, "active");
+    }
+
+    /**
+     * @param scope active — NEW + CONFIRMED (очередь); history — CLOSED; all — всё (для admin)
+     */
+    public List<IncidentView> listForUser(String username, boolean admin, String scope) {
+        var engineerId = requireEngineerId(username);
+        List<Incident> list = switch (scope == null ? "active" : scope.toLowerCase()) {
+            case "history" -> incidents.findClosed();
+            case "all" -> admin ? incidents.findAll() : incidents.findActiveForEngineers();
+            default -> admin ? incidents.findActiveForEngineers() : incidents.findActiveForEngineers();
+        };
+        return list.stream()
+                .map(inc -> toView(inc, engineerId, username))
+                .toList();
     }
 
     @Override
     public Optional<IncidentView> getById(Long id, String username, boolean admin) {
+        var engineerId = requireEngineerId(username);
         return incidents.findById(id)
-                .filter(inc -> admin || canEngineerSee(inc, username))
-                .map(this::toView);
+                .filter(inc -> canUserSee(inc, admin))
+                .map(inc -> toView(inc, engineerId, username));
     }
 
     @Override
@@ -100,9 +109,14 @@ public class IncidentApplicationService implements
         var engineerId = requireEngineerId(username);
         var current = incidents.findById(incidentId)
                 .orElseThrow(() -> new NoSuchElementException("Инцидент не найден: " + incidentId));
+        if (current.status() == Status.CONFIRMED) {
+            var assignee = resolveAssigneeUsername(current.assignedEngineerId());
+            throw new IllegalStateException(
+                    "Инцидент уже в работе" + (assignee != null ? " у " + assignee : ""));
+        }
         var updated = current.confirm(engineerId);
         incidents.updateStatus(updated.id(), updated.status().name(), updated.assignedEngineerId());
-        return toView(incidents.findById(incidentId).orElseThrow());
+        return toView(incidents.findById(incidentId).orElseThrow(), engineerId, username);
     }
 
     @Override
@@ -112,13 +126,15 @@ public class IncidentApplicationService implements
                 .orElseThrow(() -> new NoSuchElementException("Инцидент не найден: " + incidentId));
         var updated = current.close(engineerId);
         incidents.updateStatus(updated.id(), updated.status().name(), updated.assignedEngineerId());
-        return toView(incidents.findById(incidentId).orElseThrow());
+        return toView(incidents.findById(incidentId).orElseThrow(), engineerId, username);
     }
 
-    private boolean canEngineerSee(Incident inc, String username) {
-        var engineerId = requireEngineerId(username);
-        return inc.status() == Status.NEW
-                || (inc.assignedEngineerId() != null && inc.assignedEngineerId().equals(engineerId));
+    /** NEW и CONFIRMED видны всем инженерам; CLOSED — только в history. */
+    private static boolean canUserSee(Incident inc, boolean admin) {
+        if (admin) {
+            return true;
+        }
+        return inc.status() == Status.NEW || inc.status() == Status.CONFIRMED;
     }
 
     private Long requireEngineerId(String username) {
@@ -127,23 +143,41 @@ public class IncidentApplicationService implements
                 .orElseThrow(() -> new NoSuchElementException("Пользователь не найден: " + username));
     }
 
-    private IncidentView toView(Incident incident) {
+    private String resolveAssigneeUsername(Long engineerId) {
+        if (engineerId == null) {
+            return null;
+        }
+        return engineers.findById(engineerId).map(e -> e.username()).orElse(null);
+    }
+
+    private IncidentView toView(Incident incident, Long currentEngineerId, String currentUsername) {
+        var assigneeUsername = resolveAssigneeUsername(incident.assignedEngineerId());
+        boolean canAccept = incident.status() == Status.NEW;
+        boolean canClose = incident.status() == Status.CONFIRMED
+                && incident.assignedEngineerId() != null
+                && incident.assignedEngineerId().equals(currentEngineerId);
+
         if (incident.isPrometheusSourced()) {
-            var metricName = incident.prometheusExpr() != null && !incident.prometheusExpr().isBlank()
-                    ? incident.prometheusExpr()
-                    : incident.prometheusAlertName();
+            var alertName = incident.prometheusAlertName();
+            var description = incident.prometheusDescription();
             var severity = incident.prometheusSeverity() != null ? incident.prometheusSeverity() : Severity.HIGH;
             return new IncidentView(
                     incident.id(),
                     incident.ruleId(),
-                    metricName,
+                    alertName,
+                    alertName,
+                    description,
+                    incident.prometheusExpr(),
                     "prometheus",
                     0.0,
                     severity,
                     incident.status(),
                     incident.timestamp(),
                     incident.assignedEngineerId(),
-                    incident.resolvedAt()
+                    assigneeUsername,
+                    incident.resolvedAt(),
+                    canAccept,
+                    canClose
             );
         }
         var rule = incident.ruleId() != null ? alertRules.findById(incident.ruleId()).orElse(null) : null;
@@ -155,13 +189,19 @@ public class IncidentApplicationService implements
                 incident.id(),
                 incident.ruleId(),
                 metricName,
+                null,
+                null,
+                null,
                 operator,
                 threshold,
                 severity,
                 incident.status(),
                 incident.timestamp(),
                 incident.assignedEngineerId(),
-                incident.resolvedAt()
+                assigneeUsername,
+                incident.resolvedAt(),
+                canAccept,
+                canClose
         );
     }
 }

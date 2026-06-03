@@ -32,6 +32,19 @@ public record IncidentView(
         String assignedEngineerUsername,
         LocalDateTime resolvedAt,
         boolean canAccept,
-        boolean canClose
+        boolean canClose,
+        /** Ключ задачи в Яндекс Трекере, например MONITORING-3. */
+        String trackerIssueKey,
+        /**
+         * Prometheus: true — алерт ещё firing; false — алерт погас, инцидент в работе не закрыт.
+         * null — не Prometheus-инцидент.
+         */
+        Boolean prometheusAlertActive,
+        /** Адрес объекта мониторинга (из конфига). */
+        String siteAddress,
+        /** Комментарий инженера при закрытии. */
+        String closeComment,
+        /** Логин инженера, закрывшего инцидент. */
+        String closedByUsername
 ) {
 }

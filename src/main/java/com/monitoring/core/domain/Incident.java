@@ -18,7 +18,17 @@ public record Incident(
         LocalDateTime timestamp,
         Status status,
         Long assignedEngineerId,
-        LocalDateTime resolvedAt
+        LocalDateTime resolvedAt,
+        String trackerIssueKey,
+        /**
+         * Prometheus: true — алерт ещё firing; false — алерт погас, инцидент остаётся в работе.
+         * null — не Prometheus-инцидент.
+         */
+        Boolean prometheusAlertActive,
+        /** Комментарий инженера при закрытии. */
+        String closeComment,
+        /** id инженера, закрывшего инцидент. */
+        Long closedByEngineerId
 ) {
     public Incident {
         Objects.requireNonNull(timestamp, "timestamp обязателен");
@@ -28,7 +38,7 @@ public record Incident(
     public static Incident newFromRule(Long ruleId) {
         return new Incident(
                 null, ruleId, null, null, null, null, null, null,
-                LocalDateTime.now(), Status.NEW, null, null
+                LocalDateTime.now(), Status.NEW, null, null, null, null, null, null
         );
     }
 
@@ -43,7 +53,7 @@ public record Incident(
         Objects.requireNonNull(fingerprint, "fingerprint обязателен");
         return new Incident(
                 null, null, fingerprint, alertName, expr, summary, description, severity,
-                LocalDateTime.now(), Status.NEW, null, null
+                LocalDateTime.now(), Status.NEW, null, null, null, true, null, null
         );
     }
 
@@ -56,14 +66,14 @@ public record Incident(
         if (status != Status.NEW) {
             throw new IllegalStateException("Подтвердить можно только инцидент в статусе NEW");
         }
-        return copyWith(status, engineerId, resolvedAt);
+        return copyWith(Status.CONFIRMED, engineerId, resolvedAt, prometheusAlertActive, closeComment, closedByEngineerId);
     }
 
     public Incident autoResolve() {
         if (status == Status.CLOSED) {
             throw new IllegalStateException("Инцидент уже закрыт");
         }
-        return copyWith(Status.CLOSED, assignedEngineerId, LocalDateTime.now());
+        return copyWith(Status.CLOSED, assignedEngineerId, LocalDateTime.now(), prometheusAlertActive, closeComment, closedByEngineerId);
     }
 
     public Incident close(Long engineerId) {
@@ -74,14 +84,22 @@ public record Incident(
         if (!Objects.equals(assignedEngineerId, engineerId)) {
             throw new IllegalStateException("Закрыть может только назначенный инженер");
         }
-        return copyWith(Status.CLOSED, assignedEngineerId, LocalDateTime.now());
+        return copyWith(Status.CLOSED, assignedEngineerId, LocalDateTime.now(), prometheusAlertActive, closeComment, closedByEngineerId);
     }
 
-    private Incident copyWith(Status newStatus, Long engineerId, LocalDateTime resolved) {
+    private Incident copyWith(
+            Status newStatus,
+            Long engineerId,
+            LocalDateTime resolved,
+            Boolean alertActive,
+            String closeComment,
+            Long closedByEngineerId
+    ) {
         return new Incident(
                 id, ruleId, prometheusFingerprint, prometheusAlertName, prometheusExpr,
                 prometheusSummary, prometheusDescription, prometheusSeverity,
-                timestamp, newStatus, engineerId, resolved
+                timestamp, newStatus, engineerId, resolved, trackerIssueKey, alertActive,
+                closeComment, closedByEngineerId
         );
     }
 }

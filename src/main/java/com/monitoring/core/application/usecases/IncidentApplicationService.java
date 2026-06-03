@@ -1,5 +1,7 @@
 package com.monitoring.core.application.usecases;
 
+import com.monitoring.config.SiteProperties;
+import com.monitoring.core.application.TrackerAssigneeResolver;
 import com.monitoring.core.application.model.IncidentView;
 import com.monitoring.core.application.ports.in.CloseIncidentUseCase;
 import com.monitoring.core.application.ports.in.ConfirmIncidentUseCase;
@@ -33,19 +35,25 @@ public class IncidentApplicationService implements
     private final EngineerRepository engineers;
     private final NotificationRepository notifications;
     private final IncidentEventNotifier eventNotifier;
+    private final TrackerIncidentSyncService trackerSync;
+    private final SiteProperties siteProperties;
 
     public IncidentApplicationService(
             IncidentRepository incidents,
             AlertRuleRepository alertRules,
             EngineerRepository engineers,
             NotificationRepository notifications,
-            IncidentEventNotifier eventNotifier
+            IncidentEventNotifier eventNotifier,
+            TrackerIncidentSyncService trackerSync,
+            SiteProperties siteProperties
     ) {
         this.incidents = incidents;
         this.alertRules = alertRules;
         this.engineers = engineers;
         this.notifications = notifications;
         this.eventNotifier = eventNotifier;
+        this.trackerSync = trackerSync;
+        this.siteProperties = siteProperties;
     }
 
     public IncidentView createManual(Long ruleId, Long notifyEngineerId, String channel) {
@@ -88,7 +96,7 @@ public class IncidentApplicationService implements
         var engineerId = requireEngineerId(username);
         List<Incident> list = switch (scope == null ? "active" : scope.toLowerCase()) {
             case "history" -> incidents.findClosed();
-            case "all" -> admin ? incidents.findAll() : incidents.findActiveForEngineers();
+            case "all" -> listAllForSync(admin);
             default -> admin ? incidents.findActiveForEngineers() : incidents.findActiveForEngineers();
         };
         return list.stream()
@@ -116,25 +124,54 @@ public class IncidentApplicationService implements
         }
         var updated = current.confirm(engineerId);
         incidents.updateStatus(updated.id(), updated.status().name(), updated.assignedEngineerId());
+        trackerSync.onIncidentConfirmed(updated);
         return toView(incidents.findById(incidentId).orElseThrow(), engineerId, username);
     }
 
     @Override
-    public IncidentView close(Long incidentId, String username) {
+    public IncidentView close(Long incidentId, String username, String comment) {
         var engineerId = requireEngineerId(username);
         var current = incidents.findById(incidentId)
                 .orElseThrow(() -> new NoSuchElementException("Инцидент не найден: " + incidentId));
         var updated = current.close(engineerId);
-        incidents.updateStatus(updated.id(), updated.status().name(), updated.assignedEngineerId());
+        incidents.updateClose(
+                updated.id(),
+                updated.assignedEngineerId(),
+                normalizeComment(comment),
+                engineerId
+        );
+        var persisted = incidents.findById(incidentId).orElseThrow();
+        trackerSync.onIncidentClosed(persisted, normalizeComment(comment), username);
         return toView(incidents.findById(incidentId).orElseThrow(), engineerId, username);
     }
 
-    /** NEW и CONFIRMED видны всем инженерам; CLOSED — только в history. */
+    private static String normalizeComment(String comment) {
+        return comment == null || comment.isBlank() ? null : comment.trim();
+    }
+
+    /** NEW, CONFIRMED и CLOSED (история) видны инженерам в мобильном приложении. */
     private static boolean canUserSee(Incident inc, boolean admin) {
         if (admin) {
             return true;
         }
-        return inc.status() == Status.NEW || inc.status() == Status.CONFIRMED;
+        return inc.status() == Status.NEW
+                || inc.status() == Status.CONFIRMED
+                || inc.status() == Status.CLOSED;
+    }
+
+    /** Для scope=all: admin — всё; инженер — активные + закрытые (история). */
+    private List<Incident> listAllForSync(boolean admin) {
+        if (admin) {
+            return incidents.findAll();
+        }
+        var byId = new java.util.LinkedHashMap<Long, Incident>();
+        for (var inc : incidents.findActiveForEngineers()) {
+            byId.put(inc.id(), inc);
+        }
+        for (var inc : incidents.findClosed()) {
+            byId.putIfAbsent(inc.id(), inc);
+        }
+        return java.util.List.copyOf(byId.values());
     }
 
     private Long requireEngineerId(String username) {
@@ -150,8 +187,19 @@ public class IncidentApplicationService implements
         return engineers.findById(engineerId).map(e -> e.username()).orElse(null);
     }
 
+    /** Логин для UI и Трекера: tracker_login, иначе username. */
+    private String resolveEngineerDisplayLogin(Long engineerId) {
+        if (engineerId == null) {
+            return null;
+        }
+        return engineers.findById(engineerId)
+                .flatMap(TrackerAssigneeResolver::resolveLogin)
+                .orElse(null);
+    }
+
     private IncidentView toView(Incident incident, Long currentEngineerId, String currentUsername) {
-        var assigneeUsername = resolveAssigneeUsername(incident.assignedEngineerId());
+        var assigneeUsername = resolveEngineerDisplayLogin(incident.assignedEngineerId());
+        var closedByUsername = resolveEngineerDisplayLogin(incident.closedByEngineerId());
         boolean canAccept = incident.status() == Status.NEW;
         boolean canClose = incident.status() == Status.CONFIRMED
                 && incident.assignedEngineerId() != null
@@ -177,7 +225,12 @@ public class IncidentApplicationService implements
                     assigneeUsername,
                     incident.resolvedAt(),
                     canAccept,
-                    canClose
+                    canClose,
+                    incident.trackerIssueKey(),
+                    incident.prometheusAlertActive(),
+                    siteProperties.addressOrEmpty(),
+                    incident.closeComment(),
+                    closedByUsername
             );
         }
         var rule = incident.ruleId() != null ? alertRules.findById(incident.ruleId()).orElse(null) : null;
@@ -201,7 +254,12 @@ public class IncidentApplicationService implements
                 assigneeUsername,
                 incident.resolvedAt(),
                 canAccept,
-                canClose
+                canClose,
+                incident.trackerIssueKey(),
+                null,
+                siteProperties.addressOrEmpty(),
+                incident.closeComment(),
+                closedByUsername
         );
     }
 }

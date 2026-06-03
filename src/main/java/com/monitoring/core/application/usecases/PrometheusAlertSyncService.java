@@ -7,6 +7,7 @@ import com.monitoring.core.application.ports.out.repositories.IncidentRepository
 import com.monitoring.core.application.ports.out.repositories.NotificationRepository;
 import com.monitoring.core.domain.Incident;
 import com.monitoring.core.domain.Notification;
+import com.monitoring.core.domain.Status;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -25,6 +26,7 @@ public class PrometheusAlertSyncService {
     private final IncidentRepository incidents;
     private final NotificationRepository notifications;
     private final IncidentEventNotifier eventNotifier;
+    private final TrackerIncidentSyncService trackerSync;
     private final long defaultNotifyEngineerId;
 
     public PrometheusAlertSyncService(
@@ -32,12 +34,14 @@ public class PrometheusAlertSyncService {
             IncidentRepository incidents,
             NotificationRepository notifications,
             IncidentEventNotifier eventNotifier,
+            TrackerIncidentSyncService trackerSync,
             long defaultNotifyEngineerId
     ) {
         this.firingAlerts = firingAlerts;
         this.incidents = incidents;
         this.notifications = notifications;
         this.eventNotifier = eventNotifier;
+        this.trackerSync = trackerSync;
         this.defaultNotifyEngineerId = defaultNotifyEngineerId;
     }
 
@@ -49,6 +53,7 @@ public class PrometheusAlertSyncService {
 
         int created = 0;
         for (var alert : firing) {
+            markPrometheusAlertActiveIfNeeded(alert.fingerprint());
             if (tryCreateIncident(alert)) {
                 created++;
             }
@@ -62,6 +67,15 @@ public class PrometheusAlertSyncService {
             log.info("Синхронизация Prometheus: создано инцидентов {}", created);
         }
         return created;
+    }
+
+    private void markPrometheusAlertActiveIfNeeded(String fingerprint) {
+        incidents.findOpenByPrometheusFingerprint(fingerprint).ifPresent(open -> {
+            if (open.status() == Status.CONFIRMED && Boolean.FALSE.equals(open.prometheusAlertActive())) {
+                incidents.updatePrometheusAlertActive(open.id(), true);
+                log.debug("Prometheus: алерт снова firing, инцидент id={}", open.id());
+            }
+        });
     }
 
     private boolean tryCreateIncident(PrometheusFiringAlert alert) {
@@ -97,9 +111,19 @@ public class PrometheusAlertSyncService {
     }
 
     private int resolveInactivePrometheusIncidents(Set<String> activeFingerprints) {
-        int resolved = 0;
+        int autoClosed = 0;
         for (var open : incidents.findAllOpenPrometheusSourced()) {
             if (activeFingerprints.contains(open.prometheusFingerprint())) {
+                continue;
+            }
+            if (open.status() == Status.CONFIRMED) {
+                if (!Boolean.FALSE.equals(open.prometheusAlertActive())) {
+                    incidents.updatePrometheusAlertActive(open.id(), false);
+                    log.info(
+                            "Prometheus: алерт погас, инцидент id={} остаётся в работе (prometheusAlertActive=false)",
+                            open.id()
+                    );
+                }
                 continue;
             }
             var closed = open.autoResolve();
@@ -110,8 +134,9 @@ public class PrometheusAlertSyncService {
                     metric,
                     "Восстановлено: " + open.prometheusAlertName()
             );
-            resolved++;
+            trackerSync.onIncidentClosed(closed, null, null);
+            autoClosed++;
         }
-        return resolved;
+        return autoClosed;
     }
 }

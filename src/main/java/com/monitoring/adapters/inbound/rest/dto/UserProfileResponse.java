@@ -5,6 +5,7 @@ public record UserProfileResponse(
         String username,
         String role,
         String phone,
-        String notificationPrefs
+        String notificationPrefs,
+        String trackerLogin
 ) {
 }

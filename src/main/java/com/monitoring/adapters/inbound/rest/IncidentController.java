@@ -1,5 +1,6 @@
 package com.monitoring.adapters.inbound.rest;
 
+import com.monitoring.adapters.inbound.rest.dto.CloseIncidentRequest;
 import com.monitoring.adapters.inbound.rest.dto.CreateIncidentRequest;
 import com.monitoring.config.security.SecurityCurrentUser;
 import com.monitoring.core.application.model.IncidentView;
@@ -82,7 +83,11 @@ public class IncidentController {
     }
 
     @PostMapping("/{id}/close")
-    public IncidentView close(@PathVariable Long id) {
-        return incidents.close(id, currentUser.username());
+    public IncidentView close(
+            @PathVariable Long id,
+            @RequestBody(required = false) CloseIncidentRequest request
+    ) {
+        var comment = request != null ? request.comment() : null;
+        return incidents.close(id, currentUser.username(), comment);
     }
 }

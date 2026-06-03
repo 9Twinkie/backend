@@ -1,5 +1,6 @@
 package com.monitoring.config;
 
+import com.monitoring.config.SiteProperties;
 import com.monitoring.core.application.ports.in.AuthenticateUserUseCase;
 import com.monitoring.core.application.ports.out.IncidentEventNotifier;
 import com.monitoring.core.application.ports.out.repositories.AlertRuleRepository;
@@ -13,6 +14,7 @@ import com.monitoring.core.application.usecases.UserManagementService;
 import com.monitoring.core.application.ports.out.metrics.MetricHistoryReader;
 import com.monitoring.core.application.usecases.AuthenticateUserService;
 import com.monitoring.core.application.usecases.IncidentApplicationService;
+import com.monitoring.core.application.usecases.TrackerIncidentSyncService;
 import com.monitoring.core.application.usecases.IncidentChartService;
 import com.monitoring.core.application.usecases.NotificationApplicationService;
 import org.springframework.context.annotation.Bean;
@@ -39,9 +41,12 @@ public class ApplicationBeansConfig {
             AlertRuleRepository alertRules,
             EngineerRepository engineers,
             NotificationRepository notifications,
-            IncidentEventNotifier eventNotifier
+            IncidentEventNotifier eventNotifier,
+            TrackerIncidentSyncService trackerSync,
+            SiteProperties siteProperties
     ) {
-        return new IncidentApplicationService(incidents, alertRules, engineers, notifications, eventNotifier);
+        return new IncidentApplicationService(
+                incidents, alertRules, engineers, notifications, eventNotifier, trackerSync, siteProperties);
     }
 
     @Bean

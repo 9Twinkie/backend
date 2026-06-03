@@ -11,7 +11,9 @@ public record Engineer(
         String passwordHash,
         String role,
         String phone,
-        String notificationPrefs
+        String notificationPrefs,
+        /** Логин в Яндекс Трекере; если null — при синхронизации используется {@link #username}. */
+        String trackerLogin
 ) {
     public Engineer {
         Objects.requireNonNull(username, "username обязателен");

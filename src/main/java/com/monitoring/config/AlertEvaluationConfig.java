@@ -8,6 +8,7 @@ import com.monitoring.core.application.ports.out.repositories.IncidentRepository
 import com.monitoring.core.application.ports.out.repositories.NotificationRepository;
 import com.monitoring.core.application.usecases.AlertEvaluationService;
 import com.monitoring.core.application.usecases.PrometheusAlertSyncService;
+import com.monitoring.core.application.usecases.TrackerIncidentSyncService;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -41,6 +42,7 @@ public class AlertEvaluationConfig {
             IncidentRepository incidents,
             NotificationRepository notifications,
             IncidentEventNotifier eventNotifier,
+            TrackerIncidentSyncService trackerSync,
             AlertEvaluationProperties properties
     ) {
         return new PrometheusAlertSyncService(
@@ -48,6 +50,7 @@ public class AlertEvaluationConfig {
                 incidents,
                 notifications,
                 eventNotifier,
+                trackerSync,
                 properties.getDefaultNotifyEngineerId()
         );
     }

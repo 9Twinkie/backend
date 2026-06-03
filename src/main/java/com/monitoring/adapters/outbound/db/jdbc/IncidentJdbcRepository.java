@@ -26,7 +26,8 @@ public class IncidentJdbcRepository implements IncidentRepository {
     private static final String INCIDENT_COLUMNS = """
             id, rule_id, prometheus_fingerprint, prometheus_alert_name, prometheus_expr,
             prometheus_summary, prometheus_description, prometheus_severity,
-            timestamp, status, assigned_engineer_id, resolved_at
+            timestamp, status, assigned_engineer_id, resolved_at, tracker_issue_key, prometheus_alert_active,
+            close_comment, closed_by_engineer_id
             """;
 
     private static final String SELECT_BY_ID = """
@@ -109,12 +110,13 @@ public class IncidentJdbcRepository implements IncidentRepository {
             INSERT INTO incidents (
                 rule_id, prometheus_fingerprint, prometheus_alert_name, prometheus_expr,
                 prometheus_summary, prometheus_description, prometheus_severity,
-                timestamp, status, assigned_engineer_id, resolved_at
+                timestamp, status, assigned_engineer_id, resolved_at, tracker_issue_key, prometheus_alert_active
             )
             VALUES (
                 :rule_id, :prometheus_fingerprint, :prometheus_alert_name, :prometheus_expr,
                 :prometheus_summary, :prometheus_description, :prometheus_severity,
-                :timestamp, :status, :assigned_engineer_id, :resolved_at
+                :timestamp, :status, :assigned_engineer_id, :resolved_at, :tracker_issue_key,
+                :prometheus_alert_active
             )
             """;
 
@@ -127,6 +129,24 @@ public class IncidentJdbcRepository implements IncidentRepository {
                     ELSE resolved_at
                 END
             WHERE id = :id
+            """;
+
+    private static final String UPDATE_CLOSE = """
+            UPDATE incidents
+            SET status = 'CLOSED',
+                assigned_engineer_id = :engineer_id,
+                resolved_at = COALESCE(resolved_at, CURRENT_TIMESTAMP),
+                close_comment = :close_comment,
+                closed_by_engineer_id = :closed_by
+            WHERE id = :id
+            """;
+
+    private static final String UPDATE_PROMETHEUS_ALERT_ACTIVE = """
+            UPDATE incidents SET prometheus_alert_active = :active WHERE id = :id
+            """;
+
+    private static final String UPDATE_TRACKER_KEY = """
+            UPDATE incidents SET tracker_issue_key = :tracker_issue_key WHERE id = :id
             """;
 
     private final NamedParameterJdbcTemplate jdbc;
@@ -207,7 +227,9 @@ public class IncidentJdbcRepository implements IncidentRepository {
                 .addValue("timestamp", incident.timestamp())
                 .addValue("status", incident.status().name())
                 .addValue("assigned_engineer_id", incident.assignedEngineerId())
-                .addValue("resolved_at", incident.resolvedAt());
+                .addValue("resolved_at", incident.resolvedAt())
+                .addValue("tracker_issue_key", incident.trackerIssueKey())
+                .addValue("prometheus_alert_active", incident.prometheusAlertActive());
         jdbc.update(INSERT, params, kh, new String[]{"id"});
         var key = Objects.requireNonNull(kh.getKey(), "Не удалось получить сгенерированный ключ");
         return copyWithId(incident, key.longValue());
@@ -223,6 +245,33 @@ public class IncidentJdbcRepository implements IncidentRepository {
         return jdbc.update(UPDATE_STATUS, params);
     }
 
+    @Override
+    @Transactional
+    public int updateClose(Long id, Long engineerId, String closeComment, Long closedByEngineerId) {
+        var params = new MapSqlParameterSource()
+                .addValue("id", id)
+                .addValue("engineer_id", engineerId)
+                .addValue("close_comment", closeComment)
+                .addValue("closed_by", closedByEngineerId);
+        return jdbc.update(UPDATE_CLOSE, params);
+    }
+
+    @Override
+    @Transactional
+    public void updateTrackerIssueKey(Long id, String trackerIssueKey) {
+        jdbc.update(UPDATE_TRACKER_KEY, new MapSqlParameterSource()
+                .addValue("id", id)
+                .addValue("tracker_issue_key", trackerIssueKey));
+    }
+
+    @Override
+    @Transactional
+    public void updatePrometheusAlertActive(Long id, boolean active) {
+        jdbc.update(UPDATE_PROMETHEUS_ALERT_ACTIVE, new MapSqlParameterSource()
+                .addValue("id", id)
+                .addValue("active", active));
+    }
+
     private static Incident copyWithId(Incident incident, long id) {
         return new Incident(
                 id,
@@ -236,7 +285,11 @@ public class IncidentJdbcRepository implements IncidentRepository {
                 incident.timestamp(),
                 incident.status(),
                 incident.assignedEngineerId(),
-                incident.resolvedAt()
+                incident.resolvedAt(),
+                incident.trackerIssueKey(),
+                incident.prometheusAlertActive(),
+                incident.closeComment(),
+                incident.closedByEngineerId()
         );
     }
 
@@ -259,6 +312,13 @@ public class IncidentJdbcRepository implements IncidentRepository {
             LocalDateTime resolved = resolvedTs != null ? resolvedTs.toLocalDateTime() : null;
             String sevStr = rs.getString("prometheus_severity");
             Severity prometheusSeverity = sevStr != null ? Severity.valueOf(sevStr) : null;
+            Boolean alertActive = rs.getObject("prometheus_alert_active") != null
+                    ? rs.getBoolean("prometheus_alert_active")
+                    : null;
+            Long closedBy = rs.getLong("closed_by_engineer_id");
+            if (rs.wasNull()) {
+                closedBy = null;
+            }
             return new Incident(
                     rs.getLong("id"),
                     ruleId,
@@ -271,7 +331,11 @@ public class IncidentJdbcRepository implements IncidentRepository {
                     rs.getTimestamp("timestamp").toLocalDateTime(),
                     Status.valueOf(rs.getString("status")),
                     assigned,
-                    resolved
+                    resolved,
+                    rs.getString("tracker_issue_key"),
+                    alertActive,
+                    rs.getString("close_comment"),
+                    closedBy
             );
         }
     }

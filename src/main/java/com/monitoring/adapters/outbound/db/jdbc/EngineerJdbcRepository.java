@@ -23,26 +23,26 @@ import java.util.Optional;
 public class EngineerJdbcRepository implements EngineerRepository {
 
     private static final String SELECT_BY_ID = """
-            SELECT id, username, password_hash, role, phone, notification_prefs
+            SELECT id, username, password_hash, role, phone, notification_prefs, tracker_login
             FROM engineers
             WHERE id = :id
             """;
 
     private static final String SELECT_BY_USERNAME = """
-            SELECT id, username, password_hash, role, phone, notification_prefs
+            SELECT id, username, password_hash, role, phone, notification_prefs, tracker_login
             FROM engineers
             WHERE username = :username
             """;
 
     private static final String SELECT_ALL = """
-            SELECT id, username, password_hash, role, phone, notification_prefs
+            SELECT id, username, password_hash, role, phone, notification_prefs, tracker_login
             FROM engineers
             ORDER BY id
             """;
 
     private static final String INSERT = """
-            INSERT INTO engineers (username, password_hash, role, phone, notification_prefs)
-            VALUES (:username, :password_hash, :role, :phone, :notification_prefs)
+            INSERT INTO engineers (username, password_hash, role, phone, notification_prefs, tracker_login)
+            VALUES (:username, :password_hash, :role, :phone, :notification_prefs, :tracker_login)
             """;
 
     private static final String UPDATE = """
@@ -51,7 +51,8 @@ public class EngineerJdbcRepository implements EngineerRepository {
                 password_hash = :password_hash,
                 role = :role,
                 phone = :phone,
-                notification_prefs = :notification_prefs
+                notification_prefs = :notification_prefs,
+                tracker_login = :tracker_login
             WHERE id = :id
             """;
 
@@ -105,7 +106,8 @@ public class EngineerJdbcRepository implements EngineerRepository {
                     engineer.passwordHash(),
                     engineer.role(),
                     engineer.phone(),
-                    engineer.notificationPrefs()
+                    engineer.notificationPrefs(),
+                    engineer.trackerLogin()
             );
         }
         jdbc.update(UPDATE, toParams(engineer).addValue("id", engineer.id()));
@@ -138,7 +140,8 @@ public class EngineerJdbcRepository implements EngineerRepository {
                 .addValue("password_hash", engineer.passwordHash())
                 .addValue("role", engineer.role())
                 .addValue("phone", engineer.phone())
-                .addValue("notification_prefs", engineer.notificationPrefs());
+                .addValue("notification_prefs", engineer.notificationPrefs())
+                .addValue("tracker_login", engineer.trackerLogin());
     }
 
     /**
@@ -153,7 +156,8 @@ public class EngineerJdbcRepository implements EngineerRepository {
                     rs.getString("password_hash"),
                     rs.getString("role"),
                     rs.getString("phone"),
-                    rs.getString("notification_prefs")
+                    rs.getString("notification_prefs"),
+                    rs.getString("tracker_login")
             );
         }
     }

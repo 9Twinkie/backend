@@ -1,5 +1,17 @@
-# Скопируй в application-local.yml (файл в .gitignore) и подставь IP своей ВМ.
-# Запуск: профили docker,local  (БД в Docker + Prometheus на ВМ)
+# Шаблон: скопируйте в application-local.yml (в .gitignore).
+spring:
+  config:
+    activate:
+      on-profile: local
+
 monitoring:
   prometheus:
     url: http://192.168.234.128:9090/api/v1
+  tracker:
+    enabled: true
+    oauth-token: "<OAuth из oauth.yandex.ru/authorize?...>"
+    cloud-org-id: "<ID из Трекер → Администрирование → Организации>"
+    queue: MONITORING
+    status-in-progress: inProgress
+    status-closed: closed
+    resolution-closed: fixed

@@ -32,4 +32,10 @@ public interface IncidentRepository {
     Incident create(Incident incident);
 
     int updateStatus(Long id, String status, Long engineerId);
+
+    int updateClose(Long id, Long engineerId, String closeComment, Long closedByEngineerId);
+
+    void updateTrackerIssueKey(Long id, String trackerIssueKey);
+
+    void updatePrometheusAlertActive(Long id, boolean active);
 }

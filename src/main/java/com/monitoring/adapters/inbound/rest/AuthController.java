@@ -69,7 +69,8 @@ public class AuthController {
                         e.username(),
                         e.role(),
                         e.phone(),
-                        e.notificationPrefs()
+                        e.notificationPrefs(),
+                        e.trackerLogin()
                 )))
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }

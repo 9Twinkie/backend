@@ -1,5 +1,6 @@
 package com.monitoring;
 
+import com.monitoring.config.SiteProperties;
 import com.monitoring.config.security.JwtProperties;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -8,7 +9,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootApplication(exclude = UserDetailsServiceAutoConfiguration.class)
-@EnableConfigurationProperties(JwtProperties.class)
+@EnableConfigurationProperties({JwtProperties.class, SiteProperties.class})
 @EnableScheduling
 public class MonitoringApplication {
 

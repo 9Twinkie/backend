@@ -23,6 +23,23 @@ monitoring:
     source: prometheus
     interval-ms: 1000
     default-notify-engineer-id: 2
+  site:
+    address: ${MONITORING_SITE_ADDRESS:Талдомская 17к1}
+  terminal:
+    secret-key: ${TERMINAL_SECRET_KEY:change-terminal-key-dev}
+    host-key-policy: accept-all
+    connect-timeout-ms: 15000
+    max-sessions-per-user: 3
+  tracker:
+    enabled: ${TRACKER_ENABLED:false}
+    oauth-token: ${TRACKER_OAUTH_TOKEN:}
+    cloud-org-id: ${TRACKER_CLOUD_ORG_ID:}
+    queue: ${TRACKER_QUEUE:MONITORING}
+    base-url: https://api.tracker.yandex.net
+    # Ключи статусов workflow очереди (Настройки → Рабочий процесс)
+    status-in-progress: ${TRACKER_STATUS_IN_PROGRESS:inProgress}
+    status-closed: ${TRACKER_STATUS_CLOSED:closed}
+    resolution-closed: ${TRACKER_RESOLUTION_CLOSED:fixed}
 
 jwt:
   secret: change-me
